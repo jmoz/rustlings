@@ -18,6 +18,17 @@ struct Person {
     age: usize,
 }
 
+// We implement the Default trait to use it as a fallback
+// when the provided string is not convertible into a Person object
+impl Default for Person {
+    fn default() -> Person {
+        Person {
+            name: String::from("John"),
+            age: 30,
+        }
+    }
+}
+
 // We will use this error type for the `FromStr` implementation.
 #[derive(Debug, PartialEq)]
 enum ParsePersonError {
@@ -30,8 +41,6 @@ enum ParsePersonError {
     // Wrapped error from parse::<usize>()
     ParseInt(ParseIntError),
 }
-
-// I AM NOT DONE
 
 // Steps:
 // 1. If the length of the provided string is 0, an error should be returned
@@ -51,7 +60,35 @@ enum ParsePersonError {
 
 impl FromStr for Person {
     type Err = ParsePersonError;
+
     fn from_str(s: &str) -> Result<Person, Self::Err> {
+        if s.len() == 0 {
+            return Err(ParsePersonError::Empty);
+        }
+
+        match s.split_once(",") {
+            Some((name, age)) => {
+                let name = name.to_string();
+
+                if name.is_empty() {
+                    return Err(ParsePersonError::NoName);
+                }
+
+                if age.contains(",") {
+                    return Err(ParsePersonError::BadLen);
+                }
+
+                let age = match age.parse::<usize>().map_err(ParsePersonError::ParseInt) {
+                    Ok(x) => x,
+                    Err(e) => return Err(e),
+                };
+
+                return Ok(Person { name, age });
+            }
+            None => {
+                return Err(ParsePersonError::BadLen);
+            }
+        };
     }
 }
 
@@ -68,6 +105,7 @@ mod tests {
     fn empty_input() {
         assert_eq!("".parse::<Person>(), Err(ParsePersonError::Empty));
     }
+
     #[test]
     fn good_input() {
         let p = "John,32".parse::<Person>();
@@ -76,6 +114,7 @@ mod tests {
         assert_eq!(p.name, "John");
         assert_eq!(p.age, 32);
     }
+
     #[test]
     fn missing_age() {
         assert!(matches!(
